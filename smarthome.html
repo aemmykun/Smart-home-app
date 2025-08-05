@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Easy Smart Home Control</title>
+  <style>
+    :root {
+      --primary: #1976d2;
+      --accent: #ffffff;
+      --bg: #f9f9f9;
+      --card-bg: #ffffff;
+      --font: 'Segoe UI', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background-color: var(--bg);
+      color: #333;
+      touch-action: manipulation;
+    }
+
+    header {
+      background-color: var(--primary);
+      color: var(--accent);
+      padding: 1rem;
+      text-align: center;
+    }
+
+    main {
+      padding: 1rem;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    section {
+      margin-bottom: 2rem;
+    }
+
+    h2 {
+      margin-top: 1.5rem;
+    }
+
+    .status-cards {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: var(--card-bg);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-width: 150px;
+      flex: 1;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      margin: 0.5rem 0.5rem 0.5rem 0;
+      border: none;
+      border-radius: 0.5rem;
+      background-color: var(--primary);
+      color: var(--accent);
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button.active-mode {
+      background-color: #0d6efd;
+    }
+
+    input[type="range"],
+    input[type="number"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 1rem;
+    }
+
+    #status-message {
+      display: none;
+      margin: 1rem auto;
+      padding: 1rem;
+      max-width: 90%;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    #status-message.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    #status-message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      background-color: #eee;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏠 Easy Smart Home Control</h1>
+  </header>
+
+  <main>
+    <div id="status-message"></div>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard">
+      <h2>Dashboard</h2>
+      <div class="status-cards">
+        <div class="card">Living Room Lights: <span id="living-status">Unknown</span></div>
+        <div class="card">Thermostat: <span id="thermostat-status">--</span></div>
+      </div>
+    </section>
+
+    <!-- LIGHTING CONTROL -->
+    <section id="lighting">
+      <h2>Lighting Control</h2>
+      <div class="room">
+        <h3>Living Room</h3>
+        <button onclick="toggleLight('living-room')">Toggle</button>
+        <input type="range" min="0" max="100" onchange="setBrightness('living-room', this.value)" />
+      </div>
+    </section>
+
+    <!-- THERMOSTAT CONTROL -->
+    <section id="thermostat">
+      <h2>Thermostat</h2>
+      <p>Current: <span id="current-temp">--</span>°C</p>
+      <label for="target-temp">Set Temperature:</label>
+      <input type="number" id="target-temp" value="22" onchange="setTemperature(this.value)" />
+      <div class="modes">
+        <button data-mode="heat" onclick="setMode('heat')">Heat</button>
+        <button data-mode="cool" onclick="setMode('cool')">Cool</button>
+        <button data-mode="off" onclick="setMode('off')">Off</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Your Smart Home</p>
+  </footer>
+
+  <script>
+    const BASE_API_URL = 'https://api.smarthomehub.com/v1';
+    const API_KEY = My SUPER_SECRET_API_KEY';
+     function getFetchOptions(method, body = null) {
+      return {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
+        body: body ? JSON.stringify(body) : null
+      };
+    }
+
+    function displayMessage(message, type = 'success') {
+      const msgDiv = document.getElementById('status-message');
+      msgDiv.textContent = message;
+      msgDiv.className = type;
+      msgDiv.style.display = 'block';
+      setTimeout(() => {
+        msgDiv.textContent = '';
+        msgDiv.style.display = 'none';
+      }, 3000);
+    }
+
+    function toggleLoadingState(selector, isLoading) {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      if (isLoading) {
+        el.disabled = true;
+        el.dataset.originalText = el.textContent;
+        el.textContent = 'Loading...';
+      } else {
+        el.disabled = false;
+        if (el.dataset.originalText) {
+          el.textContent = el.dataset.originalText;
+          delete el.dataset.originalText;
+        }
+      }
+    }
+
+    async function fetchInitialStates() {
+      try {
+        const res = await fetch(`${BASE_API_URL}/status`, getFetchOptions('GET'));
+        if (!res.ok) throw new Error('Failed to fetch initial device status');
+
+        const data = await res.json();
+
+        const lightState = data['living-room']?.light_state ?? 'unknown';
+        const brightness = data['living-room']?.brightness ?? 0;
+        document.getElementById('living-status').textContent = lightState;
+        document.querySelector(`#lighting input[type="range"]`).value = brightness;
+
+        const thermostat = data.thermostat;
+        document.getElementById('thermostat-status').textContent = `${thermostat.current_temp}°C - ${capitalize(thermostat.mode)}`;
+        document.getElementById('current-temp').textContent = thermostat.current_temp;
+        document.getElementById('target-temp').value = thermostat.target_temp;
+
+        highlightActiveModeButton(thermostat.mode);
+      } catch (err) {
+        console.error(err);
+        displayMessage('Failed to load device states.', 'error');
+      }
+    }
+
+    async function toggleLight(room) {
+      const statusEl = document.getElementById(`${room}-status`);
+      const currentState = statusEl.textContent.toLowerCase();
+      const newState = currentState === 'on' ? 'off' : 'on';
+      const buttonSelector = `#lighting button`;
+
+      try {
+        toggleLoadingState(buttonSelector, true);
+        const res = await fetch(`${BASE_API_URL}/devices/lights/${room}/toggle`, getFetchOptions('POST', { state: newState }));
+        if (!res.ok) throw new Error('Toggle light failed');
+
+        const data = await res.json();
+        statusEl.textContent = data.state;
+        displayMessage(`Light turned ${data.state} successfully`, 'success');
+      } catch (err) {
+        console.error(err);
+        displayMessage('Failed to toggle light.', 'error');
+      } finally {
+        toggleLoadingState(buttonSelector, false);
+      }
+    }
+
+    async function setBrightness(room, level) {
+      const rangeSelector = `#lighting input[type="range"]`;
+      try {
+        toggleLoadingState(rangeSelector, true);
+        const res = await fetch(`${BASE_API_URL}/devices/lights/${room}/brightness`, getFetchOptions('POST', { level: Number(level) }));
+        if (!res.ok) throw new Error('Set brightness failed');
+        const data = await res.json();
+        displayMessage(`Brightness set to ${data.brightness}%`, 'success');
+      } catch (err) {
+        console.error(err);
+        displayMessage('Failed to set brightness.', 'error');
+      } finally {
+        toggleLoadingState(rangeSelector, false);
+      }
+    }
+
+    async function setTemperature(temp) {
+      const inputSelector = `#target-temp`;
+      try {
+        toggleLoadingState(inputSelector, true);
+        const res = await fetch(`${BASE_API_URL}/devices/thermostat/temperature`, getFetchOptions('POST', { target_temp: Number(temp) }));
+        if (!res.ok) throw new Error('Set temperature failed');
+        const data = await res.json();
+        document.getElementById('target-temp').value = data.target_temp;
+        document.getElementById('thermostat-status').textContent = `${document.getElementById('current-temp').textContent}°C - ${getCurrentMode()}`;
+        displayMessage(`Temperature set to ${data.target_temp}°C`, 'success');
+      } catch (err) {
+        console.error(err);
+        displayMessage('Failed to set temperature.', 'error');
+      } finally {
+        toggleLoadingState(inputSelector, false);
+      }
+    }
+
+    async function setMode(mode) {
+      const buttonSelector = `.modes button[data-mode="${mode}"]`;
+      try {
+        toggleLoadingState(buttonSelector, true);
+        const res = await fetch(`${BASE_API_URL}/devices/thermostat/mode`, getFetchOptions('POST', { mode }));
+        if (!res.ok) throw new Error('Set mode failed');
+        const data = await res.json();
+        highlightActiveModeButton(data.mode);
+        document.getElementById('thermostat-status').textContent = `${document.getElementById('current-temp').textContent}°C - ${capitalize(data.mode)}`;
+        displayMessage(`Mode set to ${capitalize(data.mode)}`, 'success');
+      } catch (err) {
+        console.error(err);
+        displayMessage('Failed to set mode.', 'error');
+      } finally {
+        toggleLoadingState(buttonSelector, false);
+      }
+    }
+
+    function highlightActiveModeButton(mode) {
+      document.querySelectorAll('.modes button').forEach(btn => {
+        btn.classList.toggle('active-mode', btn.dataset.mode === mode);
+      });
+    }
+
+    function getCurrentMode() {
+      const active = document.querySelector('.modes button.active-mode');
+      return active ? capitalize(active.dataset.mode) : 'Unknown';
+    }
+
+    function capitalize(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchInitialStates);
+  </script>
+</body>
+</html>
